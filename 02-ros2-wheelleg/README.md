@@ -2,70 +2,41 @@
 
 本作业配套《Venom 算法组：ROS2基础》。使用 Ubuntu 22.04、Python3.10、VS Code 和 Git 完成练习。
 
-## 作业要求
+## 控制结构
 
-修复 `password_checker.cpp`。密码必须同时满足三个条件：长度至少 10 个字符；至少包含一个大写字母、一个小写字母和一个数字；不包含使用者的名或姓（区分大小写）。全部满足时输出 `VALID`，否则输出 `INVALID`。
+| 模块 | 职责 |
+|---|---|
+| 状态解算 | 解析 6 关节角/角速度、IMU 四元数/角速度，得到 pitch/roll |
+| 五连杆正解 (`vmc_cal.py`) | 由左右髋角解算虚拟腿长 `L_0` 与虚拟腿倾角 `theta` |
+| LQR (`lqr_update.py`) | 按当前 `L_0` 查 12 维状态反馈矩阵 `K` |
+| 腿长闭环 | `F_0 = 4/cos(theta) + kp·e + kd·de/dt`，把 `L_0` 稳到目标 |
+| 横滚分配 (`roll_leg_control.py`) | 根据 roll 角差模分配左右目标腿长 |
+| VMC 映射 | 把 `F_0` 和 LQR 输出的髋部力矩 `T_p` 映射为 2 个关节力矩 |
+| 轮力矩 | 由 LQR 的 `K` 直接组合输出，符号左右镜像 |
 
-运行程序时输入“名 姓 密码”，三项之间用空格隔开。不要改变文件名和输入输出格式。本练习改编自 [UC Berkeley CS61C 的调试 Lab](https://cs61c.org/fa26/labs/lab02/)，使用 C++17 和 VS Code 完成。
+控制节拍与仿真同步：**每收到一条 `/joint_states` 就发布一条 `/actuator_cmd`**，dt 固定 0.002 s。
 
-## Fork、修改、提交
+## K 与参数来源
 
-1. 打开本仓库页面，点击右上角 **Fork**，在自己的 GitHub 账号下创建副本，仓库名保持 `training`。
-2. 在自己的 Fork 页面点击 **Code → HTTPS**，复制仓库地址。在 Ubuntu 终端中克隆到练习目录。下面命令中的 `USERNAME` 要换成自己的 GitHub 用户名：
+| 项 | 来源 |
+|---|---|
+| 12 组 `K` 多项式系数 (`POLY_COEFFICIENT`) | MATLAB 离线整定（`Wheel_Leg/LQR_VMC` 原始工程），按 `L_0` 三次多项式插值 |
+| 腿长 `L_0` / `theta` 正解 | `Wheel_Leg/LQR_VMC/vmc_cal.py` 原样复制 |
+| 腿长 PID 初始值 (`kp=700, kd=10`) | 原始工程 `main.py` |
+| 前馈 `4/cos(theta)` | 原始工程重力补偿 |
+| 横滚差模 (`RollLegController`) | `Wheel_Leg/LQR_VMC/roll_leg_control.py` 原样复制 |
+| 离地检测 (`ground_detection.py`) | 原始工程（默认关闭） |
 
-   ```bash
-   mkdir -p ~/venom_cpp_basics
-   cd ~/venom_cpp_basics
-   git clone https://github.com/USERNAME/training.git
-   cd training
-   git remote -v
-   cd 01-first-assignment
-   code .
-   ```
+ROS 参数：
 
-   Fork 是 GitHub 上属于你自己的仓库副本，`git clone` 把它下载到电脑；`git remote -v` 应显示你自己 Fork 的地址。此后都在 `training/01-first-assignment` 文件夹中修改和运行程序。
-3. 按教程修复 `password_checker.cpp`。在文件开头用注释分别说明数字判断、长度判断和范围边界原来的错误，再写一组自己设计的测试输入及预期输出。
-4. 编译和运行。每次修改后都要重新编译；最终编译不应出现警告。
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `target_length` | 0.10 m | 目标腿长 |
+| `leg_kp / leg_kd` | 700 / 10 | 腿长闭环 |
+| `feed_forward_force` | 4.0 N | 重力前馈 |
+| `wheel_torque_limit` | 1.5 N·m | 轮执行器限幅 |
+| `yaw_kp / yaw_kd` | 1.0 / 0.1 | 转向差力矩 |
+| `ground_detection_enabled` | false | 离地保护 |
+| `log_period` | 0.5 s | 日志限频 |
 
-   ```bash
-   g++ -std=c++17 -Wall -Wextra -g password_checker.cpp -o password_checker
-   ./password_checker
-   ```
-
-5. 用下表逐一测试，每行重新运行一次程序：
-
-   | 输入 | 正确输出 |
-   | --- | --- |
-   | `Li Wang Bb23456781` | `VALID` |
-   | `Li Wang Bb234567812` | `VALID` |
-   | `Li Wang Aaabcdefg9` | `VALID` |
-   | `Li Wang Zzabcdefg0` | `VALID` |
-   | `Li Wang Bb2345678` | `INVALID` |
-   | `Li Wang bb23456781` | `INVALID` |
-   | `Li Wang BB23456781` | `INVALID` |
-   | `Li Wang Bbabcdefgh` | `INVALID` |
-   | `Li Wang BbLi234567` | `INVALID` |
-   | `Li Wang BbWang2345` | `INVALID` |
-
-6. 第一次从这台 Ubuntu 电脑推送到 GitHub 时，安装 GitHub 命令行工具 `gh` 并登录。如果终端显示一次性验证码，按提示在浏览器中输入并授权。
-
-   ```bash
-   sudo apt install -y gh
-   gh auth login -h github.com -p https --web
-   gh auth setup-git
-   gh auth status
-   ```
-
-7. 确认修改内容，然后提交并推送到自己的 Fork：
-
-   ```bash
-   git status
-   git diff -- password_checker.cpp
-   git add password_checker.cpp
-   git diff --cached
-   git commit -m "Fix password checker"
-   git push origin main
-   ```
-
-打开自己的 Fork 页面，确认能看到刚才的提交。提交作业时提供自己 Fork 的仓库链接，例如 `https://github.com/USERNAME/training`。
-
+## 实测数据
