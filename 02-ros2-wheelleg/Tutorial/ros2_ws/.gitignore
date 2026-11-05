@@ -2,6 +2,7 @@
 build/
 install/
 log/
+.vscode/
 
 # Python
 __pycache__/
