@@ -54,4 +54,8 @@ ROS 参数：
 本次作业大多由AI辅助完成
 1. ros2的模块化设计使它对项目结构有一定要求，基本上是/src的同级文件夹及其子目录的名字不能乱动，而/src的父文件夹代表项目名，可以改动。
 2. 动力学及数学模块中的函数我没看懂，参数也不会填，故大量运用了AI工具完成，但代码逻辑我还是能看懂的。
-3. 同一个.py文件下可以有多个节点分担不同的功能，可通过rclpy.executors.MultiThreadedExecutor()
+3. 同一个.py文件下可以有多个节点分担不同的功能，可通过rclpy.executors.MultiThreadedExecutor()并行运行节点。
+4. 类似于3.，同一个节点可以挂载不同的功能，因此监听数据可以处理后作为发送数据。
+5. 通过ros2 pkg create可方便地创建易管理的包，此时包内的.py文件中导入的库会自动写入.xml文件的depend中
+6. 自动创建的包中，有test文件夹test_depend依赖，ros2藉此检查依赖、许可证等，因此可能会弹出无许可证的警告。（也可删除测试文件）
+7. 现在VS Code中已无ros2插件，更名为Robot Developer Extensions且有两个包。
